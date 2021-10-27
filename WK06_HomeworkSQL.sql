@@ -60,6 +60,7 @@ EXPLAIN ANALYZE SELECT customer_id, SUM(amount) AS total_payment
 FROM payment
 GROUP BY customer_id
 ORDER BY total_payment;
+
 --OUTPUT EXPLAIN ANALYZE #4
 "Sort  (cost=362.06..363.56 rows=599 width=34) (actual time=16.936..16.990 rows=599 loops=1)"
 "  Sort Key: (sum(amount))"
@@ -70,6 +71,39 @@ ORDER BY total_payment;
 "        ->  Seq Scan on payment  (cost=0.00..253.96 rows=14596 width=8) (actual time=0.030..2.504 rows=14596 loops=1)"
 "Planning Time: 0.221 ms"
 "Execution Time: 17.195 ms"
+
+--ANSWER-- 
+--This query used a sort, hash, and sequential scan in 1 loop each
+--the execution time for the entire query was 17.192 ms
+
+--#5 EXPLAIN ANALYZE
+EXPLAIN ANALYZE SELECT first_name AS first, last_name AS last, COUNT(actor_id) AS film_count
+FROM film_actor AS f
+	INNER JOIN actor AS a
+	USING (actor_id)
+GROUP BY last_name, first_name
+ORDER BY film_count DESC;
+
+--OUTPUT EXPLAIN ANALYZE # 5
+"Sort  (cost=152.48..152.80 rows=128 width=21) (actual time=11.964..11.992 rows=199 loops=1)"
+"  Sort Key: (count(a.actor_id)) DESC"
+"  Sort Method: quicksort  Memory: 40kB"
+"  ->  HashAggregate  (cost=146.72..148.00 rows=128 width=21) (actual time=11.111..11.214 rows=199 loops=1)"
+"        Group Key: a.last_name, a.first_name"
+"        Batches: 1  Memory Usage: 64kB"
+"        ->  Hash Join  (cost=6.50..105.76 rows=5462 width=17) (actual time=0.332..5.716 rows=5462 loops=1)"
+"              Hash Cond: (f.actor_id = a.actor_id)"
+"              ->  Seq Scan on film_actor f  (cost=0.00..84.62 rows=5462 width=2) (actual time=0.039..1.052 rows=5462 loops=1)"
+"              ->  Hash  (cost=4.00..4.00 rows=200 width=17) (actual time=0.195..0.197 rows=200 loops=1)"
+"                    Buckets: 1024  Batches: 1  Memory Usage: 18kB"
+"                    ->  Seq Scan on actor a  (cost=0.00..4.00 rows=200 width=17) (actual time=0.029..0.093 rows=200 loops=1)"
+"Planning Time: 4.273 ms"
+"Execution Time: 23.785 ms"
+
+--ANSWER-- 
+--This query used the structure - sort, hash, hash join, sequential scan, hash, sequential scan
+--requiring more steps that the first query and taking longer to execute
+--the execution time was 23.785 ms for this query
 
 
 -----------------------------------------------------------------------------
@@ -147,7 +181,42 @@ ORDER BY rental_count DESC;
 
 -----------------------------------------------------------------------------
 --10.	Create a view for 8 and a view for 9. Be sure to name them appropriately. 
+--CREATE VIEW for #8
+CREATE VIEW returns_ontime AS
+SELECT COUNT(*)
+FROM film as f
+	INNER JOIN inventory as i
+		USING (film_id)
+	INNER JOIN rental as r
+		USING (inventory_id)
+WHERE rental_duration = EXTRACT(DAY FROM return_date-rental_date);
 
+--Answer--
+--This view returns the number of rentals returned on time and can be accessed with:
+SELECT * FROM returns_ontime;
+
+
+--CREATE VIEW for #9
+CREATE VIEW count_sales_by_category AS
+SELECT c.name AS category, 
+    COUNT(r.inventory_id) AS rental_count, 
+    SUM(amount) AS total_sales
+FROM payment as p
+	INNER JOIN rental as r
+		USING (rental_id)
+	INNER JOIN inventory as i
+		USING (inventory_id)
+	INNER JOIN film_category as f
+		USING (film_id)
+	INNER JOIN category as c
+		USING (category_id)
+GROUP BY category
+ORDER BY rental_count DESC;
+
+--Answer--
+--This view returns a table with the rental count and sales total by category
+--It can be accessed with:
+SELECT * FROM count_sales_by_category;
 
 -----------------------------------------------------------------------------
 --Bonus: Write a query that shows how many films were rented each month. Group them by category and month. 
